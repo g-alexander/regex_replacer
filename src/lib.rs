@@ -1,35 +1,44 @@
 use pyo3::prelude::*;
 use regex::{Regex};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use rayon::prelude::*;
-use rayon::ThreadPoolBuilder;
+use rayon::{ThreadPoolBuilder, ThreadPool};
 
 #[pyclass]
 struct RegexReplacer {
-    re_set: Arc<Vec<(Regex, String)>>
+    re_set: Arc<Vec<(Regex, String)>>,
+    executor: Arc<Mutex<Option<ThreadPool>>>
 }
 
 #[pymethods]
 impl RegexReplacer {
     #[new]
-    #[args(n_jobs=0)]
+    #[pyo3(signature=(re_list, n_jobs=1))]
     pub fn new(re_list: Vec<(&str, &str)>, n_jobs: usize) -> Self {
-        let re_set = Arc::new(re_list.into_iter().map(|(r, t)| (Regex::new(r).unwrap(), String::from(t))).collect());
+        let re_set = Arc::new(re_list.into_iter().map(|(r, t)| (Regex::new(r)
+                                                                    .expect(("Error compile regex: ".to_string() + r).as_str()), String::from(t))).collect());
+        let executor;
         if n_jobs > 1 {
-            ThreadPoolBuilder::new().num_threads(n_jobs).build_global().unwrap();
+            executor = Arc::new(Mutex::new(Some(ThreadPoolBuilder::new().num_threads(n_jobs).build().unwrap())));
+        } else {
+            executor = Arc::new(Mutex::new(None));
         }
-        RegexReplacer { re_set }
+        RegexReplacer { re_set, executor }
     }
 
-    #[args(single_thread=false)]
-    pub fn transform(&mut self, texts: Vec<String>, single_thread: bool) -> Vec<String> {
-        let reg_set = Arc::clone(&(self.re_set));
-        if single_thread {
-            texts.into_iter().map(move |t| self._process(t, &reg_set)).collect()
-        } else {
-            texts.into_par_iter().map(move |t| self._process(t, &reg_set)).collect()
-        }
+    #[pyo3(signature=())]
+    pub fn to_single_thread(&mut self) {
+        let mut e = self.executor.lock().unwrap();
+        *e = None;
+    }
 
+    #[pyo3(signature=(texts))]
+    pub fn transform(&mut self, texts: Vec<String>) -> Vec<String> {
+        let reg_set = self.re_set.clone();
+        match self.executor.clone().lock().unwrap().as_ref() {
+            Some(e) => e.install(|| texts.into_par_iter().map(move |t| self._process(t, &reg_set)).collect()),
+            None => texts.into_iter().map(move |t| self._process(t, &reg_set)).collect()
+        }
     }
 }
 
@@ -57,7 +66,7 @@ mod tests {
     #[test]
     fn it_works() {
         let mut rr = RegexReplacer::new(Vec::from([(r"\d+", "-"), (r"[a-z]+", "+")]), 2);
-        let res = rr.transform(Vec::from([String::from("hbkjfsbiu2746928764nbdkfasd")]), false);
+        let res = rr.transform(Vec::from([String::from("hbkjfsbiu2746928764nbdkfasd")]));
         assert_eq!(res[0], "+-+");
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "regex_replacer"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Alex"]
 edition = "2018"
 
@@ -11,6 +11,6 @@ name = "regex_replacer"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = {version = "0.13.2", features = ["extension-module"]}
+pyo3 = {version = "0.19.2", features = ["extension-module"]}
 regex = "1"
 rayon = "1.5"

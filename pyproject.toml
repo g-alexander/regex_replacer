@@ -3,7 +3,7 @@ requires = ["setuptools", "wheel", "setuptools-rust"]
 
 [project]
 name = "regex_replacer"
-version = "0.1.0"
+version = "0.1.1"
 authors = [{name = "GAlexander", email = "g.alexander.box@gmail.com"}]
 description = "Simple class for replace test with regex. Support scikit-learn transformer interface."
 readme = "README.md"
